@@ -18,7 +18,7 @@ use core_text::font_collection::{self, CTFontCollection};
 use core_text::font_descriptor::{self, CTFontDescriptor};
 use core_text::font_manager;
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::f32;
 use std::fs::File;
 use std::path::PathBuf;
@@ -164,57 +164,19 @@ fn create_handles_from_core_text_collection(
 ) -> Result<Vec<Handle>, SelectionError> {
     let mut fonts = vec![];
     if let Some(descriptors) = collection.get_descriptors() {
-        let mut font_data_info_cache: HashMap<PathBuf, FontDataInfo> = HashMap::new();
+        let mut font_data_info_cache = HashSet::new();
 
-        'outer: for index in 0..descriptors.len() {
+        for index in 0..descriptors.len() {
             let descriptor = descriptors.get(index).unwrap();
             let font_path = descriptor.font_path().unwrap();
 
-            let data_info = if let Some(data_info) = font_data_info_cache.get(&font_path) {
-                data_info.clone()
-            } else {
-                let mut file = if let Ok(file) = File::open(&font_path) {
-                    file
-                } else {
-                    continue;
-                };
-                let data = if let Ok(data) = utils::slurp_file(&mut file) {
-                    Arc::new(data)
-                } else {
-                    continue;
-                };
-
-                let file_type = match Font::analyze_bytes(Arc::clone(&data)) {
-                    Ok(file_type) => file_type,
-                    Err(_) => continue,
-                };
-
-                let data_info = FontDataInfo { data, file_type };
-
-                font_data_info_cache.insert(font_path.clone(), data_info.clone());
-
-                data_info
-            };
-
-            match data_info.file_type {
-                FileType::Collection(font_count) => {
-                    let postscript_name = descriptor.font_name();
-                    for font_index in 0..font_count {
-                        if let Ok(font) = Font::from_bytes(Arc::clone(&data_info.data), font_index)
-                        {
-                            if let Some(font_postscript_name) = font.postscript_name() {
-                                if postscript_name == font_postscript_name {
-                                    fonts.push(Handle::from_memory(data_info.data, font_index));
-                                    continue 'outer;
-                                }
-                            }
-                        }
-                    }
-                }
-                FileType::Single => {
-                    fonts.push(Handle::from_memory(data_info.data, 0));
-                }
+            if font_data_info_cache.contains(&font_path) {
+                continue;
             }
+
+            font_data_info_cache.insert(font_path.clone());
+
+            fonts.push(Handle::from_path(font_path, 0));
         }
     }
     if fonts.is_empty() {

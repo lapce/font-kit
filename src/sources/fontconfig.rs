@@ -114,7 +114,7 @@ impl FontconfigSource {
         use std::borrow::Cow;
 
         let family_name = match family_name {
-            "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy" => {
+            "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy" | "system-ui" => {
                 Cow::from(self.select_generic_font(family_name)?)
             }
             _ => Cow::from(family_name),
